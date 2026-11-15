@@ -12,8 +12,12 @@ AppPublisherURL=https://github.com/sid-gupta-007/luma-wave-v2-sid
 AppSupportURL=https://github.com/sid-gupta-007/luma-wave-v2-sid/issues
 AppUpdatesURL=https://github.com/sid-gupta-007/luma-wave-v2-sid/releases
 DefaultDirName={localappdata}\Programs\Luma-Wave
-DisableProgramGroupPage=yes
+DefaultGroupName=Luma-Wave
+DisableWelcomePage=no
+DisableDirPage=no
+DisableProgramGroupPage=no
 LicenseFile=LICENSE
+InfoBeforeFile=INSTALL_INFO.txt
 PrivilegesRequired=lowest
 OutputDir=dist
 OutputBaseFilename=LumaWave-v{#AppVersion}-Setup
@@ -35,7 +39,8 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "dist\LumaWave\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{autoprograms}\Luma-Wave"; Filename: "{app}\LumaWave.exe"
+Name: "{group}\Luma-Wave"; Filename: "{app}\LumaWave.exe"
+Name: "{group}\Uninstall Luma-Wave"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\Luma-Wave"; Filename: "{app}\LumaWave.exe"; Tasks: desktopicon
 
 [Run]

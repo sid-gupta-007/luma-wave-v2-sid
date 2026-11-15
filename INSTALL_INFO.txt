@@ -1,0 +1,18 @@
+LumaWave — Installation & Update Information
+
+1. Update Checks & Network Access
+   - LumaWave checks for new releases on GitHub:
+     https://github.com/sid-gupta-007/luma-wave-v2-sid/releases
+   - When checking for updates, LumaWave queries the GitHub Releases API over HTTPS
+     to read the latest version number and verifies the release package against
+     SHA256SUMS.txt before applying any update.
+   - Updates are never installed without your confirmation. If you skip an update,
+     you will not be prompted again for that version unless you manually check.
+
+2. Privacy & Local Data
+   - LumaWave does not collect telemetry, analytics, or personal information.
+   - Your settings (overlay colors, opacity, schedule, and startup preference)
+     are stored locally on your PC.
+   - "Start with Windows" is optional and can be enabled or disabled anytime
+     from Settings.
+
