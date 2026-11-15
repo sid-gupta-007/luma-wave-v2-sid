@@ -4,15 +4,15 @@
 
 [Setup]
 AppId={{8F6C2B4D-3A19-4C8E-9D15-7A2F4E1B9C01}
-AppName=Luma-Wave
+AppName=LumaWaveV2
 AppVersion={#AppVersion}
-AppVerName=Luma-Wave {#AppVersion}
+AppVerName=LumaWaveV2 {#AppVersion}
 AppPublisher=Siddharth Gupta
 AppPublisherURL=https://github.com/sid-gupta-007/luma-wave-v2-sid
 AppSupportURL=https://github.com/sid-gupta-007/luma-wave-v2-sid/issues
 AppUpdatesURL=https://github.com/sid-gupta-007/luma-wave-v2-sid/releases
-DefaultDirName={localappdata}\Programs\Luma-Wave
-DefaultGroupName=Luma-Wave
+DefaultDirName={localappdata}\Programs\LumaWaveV2
+DefaultGroupName=LumaWaveV2
 DisableWelcomePage=no
 DisableDirPage=no
 DisableProgramGroupPage=no
@@ -21,6 +21,7 @@ InfoBeforeFile=INSTALL_INFO.txt
 PrivilegesRequired=lowest
 OutputDir=dist
 OutputBaseFilename=LumaWave-v{#AppVersion}-Setup
+SetupIconFile=lumawave\assets\app.ico
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -39,10 +40,10 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "dist\LumaWave\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\Luma-Wave"; Filename: "{app}\LumaWave.exe"
-Name: "{group}\Uninstall Luma-Wave"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\Luma-Wave"; Filename: "{app}\LumaWave.exe"; Tasks: desktopicon
+Name: "{group}\LumaWaveV2"; Filename: "{app}\LumaWave.exe"
+Name: "{group}\Uninstall LumaWaveV2"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\LumaWaveV2"; Filename: "{app}\LumaWave.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\LumaWave.exe"; Description: "{cm:LaunchProgram,Luma-Wave}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\LumaWave.exe"; Description: "{cm:LaunchProgram,LumaWaveV2}"; Flags: nowait postinstall skipifsilent
 

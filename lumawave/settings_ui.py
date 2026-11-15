@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
     QSlider, QVBoxLayout, QWidget,
 )
 
-from . import APP_VERSION, GITHUB_REPO
+from . import APP_NAME, APP_VERSION, GITHUB_REPO
 from .audio import AudioEngine
 from .colors import extract_screen_colors, extract_wallpaper_colors
 from .config import (
@@ -142,7 +142,7 @@ QPushButton#applyBtn:hover {
 class SettingsDialog(QDialog):
     applied = Signal(Settings)
 
-    def __init__(self, current: Settings, visualizer: Visualizer) -> None:
+    def __init__(self, current: Settings, visualizer: Visualizer, on_check_updates=None) -> None:
         super().__init__()
         self.visualizer = visualizer
         self.wheel_filter = NoWheelFilter(self)
@@ -152,7 +152,7 @@ class SettingsDialog(QDialog):
         self._save_timer.setSingleShot(True)
         self._save_timer.setInterval(180)
         self._save_timer.timeout.connect(self._persist_current)
-        self.setWindowTitle(f"Luma-Wave v{APP_VERSION} — Settings")
+        self.setWindowTitle(f"{APP_NAME} v{APP_VERSION} — Settings")
         self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
         self.setMinimumSize(560, 620)
         self.setStyleSheet(STYLESHEET)
@@ -164,7 +164,7 @@ class SettingsDialog(QDialog):
         header = QHBoxLayout()
         title_box = QVBoxLayout()
         title_box.setSpacing(2)
-        title_lbl = QLabel("Luma-Wave")
+        title_lbl = QLabel(APP_NAME)
         title_lbl.setObjectName("titleLabel")
         sub_lbl = QLabel(f"v{APP_VERSION} • Audio Spectrum & Ambient Edge Overlay")
         sub_lbl.setObjectName("subtitleLabel")
@@ -377,13 +377,20 @@ class SettingsDialog(QDialog):
         reset_btn.setAutoDefault(False)
         reset_btn.setDefault(False)
         reset_btn.clicked.connect(self._reset_defaults)
+        footer.addWidget(reset_btn)
+        if on_check_updates is not None:
+            update_btn = QPushButton("Check for Updates")
+            update_btn.setAutoDefault(False)
+            update_btn.setDefault(False)
+            update_btn.clicked.connect(on_check_updates)
+            footer.addSpacing(8)
+            footer.addWidget(update_btn)
         auto_lbl = QLabel("Changes apply & save live")
         auto_lbl.setStyleSheet("color: #7d8599; font-size: 11px;")
         close_btn = QPushButton("Close")
         close_btn.setAutoDefault(False)
         close_btn.setDefault(False)
         close_btn.clicked.connect(self.close)
-        footer.addWidget(reset_btn)
         footer.addSpacing(10)
         footer.addWidget(auto_lbl)
         footer.addStretch()

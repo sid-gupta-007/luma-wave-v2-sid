@@ -99,7 +99,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
-          name: Luma-Wave ${{ steps.version.outputs.tag }}
+          name: LumaWaveV2 ${{ steps.version.outputs.tag }}
           files: |
             LumaWave-v${{ steps.version.outputs.version }}-Windows-x64.zip
             LumaWave-v${{ steps.version.outputs.version }}-Setup.exe

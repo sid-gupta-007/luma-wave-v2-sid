@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
-from . import APP_VERSION
+from . import APP_NAME, APP_VERSION
 from .config import save_settings
 from .settings_ui import SettingsDialog
 from .updater import Updater
@@ -19,8 +21,10 @@ class Tray:
         self.updater.check_finished.connect(self._on_update_checked)
         self.updater.install_failed.connect(self._on_update_failed)
 
-        self.icon = QSystemTrayIcon(self._make_icon(), app)
-        self.icon.setToolTip(f"Luma-Wave v{APP_VERSION} — audio visualizer")
+        app_icon = self._make_icon()
+        app.setWindowIcon(app_icon)
+        self.icon = QSystemTrayIcon(app_icon, app)
+        self.icon.setToolTip(f"{APP_NAME} v{APP_VERSION} — audio visualizer")
         menu = QMenu()
         self.toggle_action = QAction("Turn Off Visualizer" if visualizer.settings.enabled else "Turn On Visualizer", menu)
         self.toggle_action.triggered.connect(self.toggle_visualizer)
@@ -53,13 +57,14 @@ class Tray:
     def _on_update_checked(self, status: str, tag: str, zip_url: str, silent: bool) -> None:
         self.update_action.setEnabled(True)
         self.update_action.setText("Check for Update…")
+        parent = self.dialog if (self.dialog is not None and self.dialog.isVisible()) else None
         if status == "found":
             if silent and tag == self.visualizer.settings.skipped_version:
                 return
             reply = QMessageBox.question(
-                None,
+                parent,
                 "Update Available",
-                f"Luma-Wave {tag} is available (you have v{APP_VERSION}).\n\nDownload and install the update automatically?",
+                f"{APP_NAME} {tag} is available (you have v{APP_VERSION}).\n\nDownload and install the update automatically?",
             )
             if reply == QMessageBox.StandardButton.Yes:
                 self.update_action.setEnabled(False)
@@ -74,10 +79,10 @@ class Tray:
         elif silent:
             return
         elif status == "current":
-            QMessageBox.information(None, "Up to Date", f"You are running the latest version ({tag}).")
+            QMessageBox.information(parent, "Up to Date", f"You are running the latest version ({tag}).")
         else:
             QMessageBox.information(
-                None,
+                parent,
                 "No Internet Connection",
                 "You appear to be offline. Please turn on your internet connection and check again.",
             )
@@ -85,7 +90,8 @@ class Tray:
     def _on_update_failed(self, message: str) -> None:
         self.update_action.setEnabled(True)
         self.update_action.setText("Check for Update…")
-        QMessageBox.warning(None, "Update Error", message)
+        parent = self.dialog if (self.dialog is not None and self.dialog.isVisible()) else None
+        QMessageBox.warning(parent, "Update Error", message)
 
     def toggle_visualizer(self) -> None:
         s = self.visualizer.settings
@@ -104,6 +110,11 @@ class Tray:
 
     @staticmethod
     def _make_icon() -> QIcon:
+        ico_path = Path(__file__).resolve().parent / "assets" / "app.ico"
+        if ico_path.exists():
+            icon = QIcon(str(ico_path))
+            if not icon.isNull():
+                return icon
         pixmap = QPixmap(32, 32)
         pixmap.fill(Qt.GlobalColor.transparent)
         painter = QPainter(pixmap)
@@ -120,7 +131,7 @@ class Tray:
             self.dialog.raise_()
             self.dialog.activateWindow()
             return
-        self.dialog = SettingsDialog(self.visualizer.settings, self.visualizer)
+        self.dialog = SettingsDialog(self.visualizer.settings, self.visualizer, on_check_updates=self.check_for_update)
         self.dialog.show()
         self.dialog.raise_()
         self.dialog.activateWindow()

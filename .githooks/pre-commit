@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+if [ -f "scripts/bump_version.py" ]; then
+  python scripts/bump_version.py || exit 1
+fi
+

@@ -6,7 +6,7 @@ a = Analysis(
     ['app.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('lumawave/assets/app.ico', 'lumawave/assets')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -43,6 +43,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='lumawave/assets/app.ico',
 )
 coll = COLLECT(
     exe,
