@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 )
 
 APP_NAME = "Luma-Wave"
+APP_VERSION = "1.1.0"
 CONFIG_FILE = Path(os.environ.get("APPDATA", Path.home())) / "LumaWave" / "settings-v2.json"
 FFT_SIZE = 4096
 BUFFER_SIZE = 4096
@@ -994,7 +995,7 @@ class SettingsDialog(QDialog):
         self._save_timer.setSingleShot(True)
         self._save_timer.setInterval(180)
         self._save_timer.timeout.connect(self._persist_current)
-        self.setWindowTitle("Luma-Wave Settings")
+        self.setWindowTitle(f"Luma-Wave v{APP_VERSION} — Settings")
         self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
         self.setMinimumSize(560, 620)
         self.setStyleSheet(STYLESHEET)
@@ -1008,7 +1009,7 @@ class SettingsDialog(QDialog):
         title_box.setSpacing(2)
         title_lbl = QLabel("Luma-Wave")
         title_lbl.setObjectName("titleLabel")
-        sub_lbl = QLabel("Audio Spectrum & Ambient Edge Overlay")
+        sub_lbl = QLabel(f"v{APP_VERSION} • Audio Spectrum & Ambient Edge Overlay")
         sub_lbl.setObjectName("subtitleLabel")
         title_box.addWidget(title_lbl)
         title_box.addWidget(sub_lbl)
@@ -1454,7 +1455,7 @@ class Tray:
         self.app, self.visualizer = app, visualizer
         self.dialog: SettingsDialog | None = None
         self.icon = QSystemTrayIcon(self._make_icon(), app)
-        self.icon.setToolTip("Luma-Wave — audio visualizer")
+        self.icon.setToolTip(f"Luma-Wave v{APP_VERSION} — audio visualizer")
         menu = QMenu()
         self.toggle_action = QAction("Turn Off Visualizer" if visualizer.settings.enabled else "Turn On Visualizer", menu)
         self.toggle_action.triggered.connect(self.toggle_visualizer)

@@ -39,20 +39,37 @@ jobs:
             exit 1
           }
 
+      - name: Read app version
+        id: version
+        shell: pwsh
+        run: |
+          if ("${{ github.ref }}".StartsWith("refs/tags/v")) {
+            $ver = "${{ github.ref_name }}".TrimStart("v")
+          } else {
+            if ((Get-Content app.py -Raw) -match 'APP_VERSION\s*=\s*"([^"]+)"') {
+              $ver = $Matches[1]
+            } else {
+              Write-Error "APP_VERSION not found in app.py"
+              exit 1
+            }
+          }
+          echo "version=$ver" >> $env:GITHUB_OUTPUT
+          echo "tag=v$ver" >> $env:GITHUB_OUTPUT
+
       - name: Package LumaWave-Windows-x64.zip
         shell: pwsh
-        run: Compress-Archive -Path dist\LumaWave\* -DestinationPath LumaWave-Windows-x64.zip -Force
+        run: Compress-Archive -Path dist\LumaWave\* -DestinationPath "LumaWave-v${{ steps.version.outputs.version }}-Windows-x64.zip" -Force
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: LumaWave-Windows-x64
-          path: LumaWave-Windows-x64.zip
+          name: LumaWave-v${{ steps.version.outputs.version }}-Windows-x64
+          path: LumaWave-v${{ steps.version.outputs.version }}-Windows-x64.zip
 
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'latest' }}
-          name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'Latest Build (main)' }}
-          files: LumaWave-Windows-x64.zip
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Luma-Wave ${{ steps.version.outputs.tag }}
+          files: LumaWave-v${{ steps.version.outputs.version }}-Windows-x64.zip
 
