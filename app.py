@@ -313,6 +313,7 @@ class Visualizer(QWidget):
 
     def __init__(self, settings: Settings) -> None:
         super().__init__()
+        self._initialized = False
         self.settings = settings
         self.audio = AudioEngine()
         self.values = np.zeros(64, dtype=np.float32)
@@ -365,8 +366,9 @@ class Visualizer(QWidget):
         return (1.0 - math.sqrt(dist_sq) / radius) ** 2
 
     def apply_settings(self, settings: Settings, persist: bool = True, restart_audio: bool = True) -> None:
-        old = self.settings if hasattr(self, "settings") else None
+        old = self.settings if self._initialized else None
         self.settings = settings
+        self._initialized = True
 
         if old is None or old.always_on_top != settings.always_on_top:
             flags = Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool | Qt.WindowType.WindowDoesNotAcceptFocus
