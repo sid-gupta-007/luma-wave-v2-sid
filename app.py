@@ -1,6 +1,7 @@
 """Luma-Wave desktop audio visualizer entry point."""
 from __future__ import annotations
 
+import ctypes
 import sys
 
 from PySide6.QtCore import QTimer
@@ -12,6 +13,9 @@ from lumawave.visualizer import Visualizer
 
 
 def main() -> int:
+    _mutex = ctypes.windll.kernel32.CreateMutexW(None, False, "LumaWaveV2_SingleInstance")
+    if ctypes.windll.kernel32.GetLastError() == 183:
+        return 0
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     is_first_run = not CONFIG_FILE.exists()

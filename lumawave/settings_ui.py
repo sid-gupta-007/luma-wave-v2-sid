@@ -379,13 +379,14 @@ class SettingsDialog(QDialog):
         reset_btn.setDefault(False)
         reset_btn.clicked.connect(self._reset_defaults)
         footer.addWidget(reset_btn)
+        self.update_btn: QPushButton | None = None
         if on_check_updates is not None:
-            update_btn = QPushButton("Check for Updates")
-            update_btn.setAutoDefault(False)
-            update_btn.setDefault(False)
-            update_btn.clicked.connect(on_check_updates)
+            self.update_btn = QPushButton("Check for Updates")
+            self.update_btn.setAutoDefault(False)
+            self.update_btn.setDefault(False)
+            self.update_btn.clicked.connect(on_check_updates)
             footer.addSpacing(8)
-            footer.addWidget(update_btn)
+            footer.addWidget(self.update_btn)
         auto_lbl = QLabel("Changes apply & save live")
         auto_lbl.setStyleSheet("color: #7d8599; font-size: 11px;")
         close_btn = QPushButton("Close")
@@ -401,6 +402,11 @@ class SettingsDialog(QDialog):
         self._wire_live_updates()
         self.visualizer.palette_changed.connect(self._apply_swatch_colors)
         self._suppress_live = False
+
+    def set_update_state(self, busy: bool, label: str = "Check for Updates") -> None:
+        if self.update_btn is not None:
+            self.update_btn.setEnabled(not busy)
+            self.update_btn.setText(label)
 
     @staticmethod
     def _make_card(title: str) -> tuple[QFrame, QVBoxLayout]:

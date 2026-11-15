@@ -4,7 +4,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
-from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
+from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QProgressDialog, QSystemTrayIcon
 
 from . import APP_NAME, APP_VERSION
 from .config import save_settings
@@ -17,9 +17,12 @@ class Tray:
     def __init__(self, app: QApplication, visualizer: Visualizer) -> None:
         self.app, self.visualizer = app, visualizer
         self.dialog: SettingsDialog | None = None
+        self._progress_dlg: QProgressDialog | None = None
         self.updater = Updater()
         self.updater.check_finished.connect(self._on_update_checked)
         self.updater.install_failed.connect(self._on_update_failed)
+        self.updater.status_changed.connect(self._on_update_status)
+        self.updater.progress_changed.connect(self._on_update_progress)
 
         app_icon = self._make_icon()
         app.setWindowIcon(app_icon)
@@ -50,13 +53,29 @@ class Tray:
         QTimer.singleShot(2500, lambda: self.updater.check_async(silent=True))
 
     def check_for_update(self) -> None:
-        self.update_action.setEnabled(False)
-        self.update_action.setText("Checking for Update…")
+        if self.updater._checking or self.updater._installing:
+            return
+        self._set_update_ui(True, "Checking…")
         self.updater.check_async(silent=False)
 
+    def _set_update_ui(self, busy: bool, label: str = "Check for Update…") -> None:
+        self.update_action.setEnabled(not busy)
+        self.update_action.setText(label)
+        if self.dialog is not None:
+            btn_label = "Check for Updates" if not busy else label
+            self.dialog.set_update_state(busy, btn_label)
+
+    def _on_update_status(self, text: str) -> None:
+        self._set_update_ui(True, text)
+        if self._progress_dlg is not None:
+            self._progress_dlg.setLabelText(text)
+
+    def _on_update_progress(self, value: int) -> None:
+        if self._progress_dlg is not None:
+            self._progress_dlg.setValue(value)
+
     def _on_update_checked(self, status: str, tag: str, zip_url: str, silent: bool) -> None:
-        self.update_action.setEnabled(True)
-        self.update_action.setText("Check for Update…")
+        self._set_update_ui(False, "Check for Update…")
         parent = self.dialog if (self.dialog is not None and self.dialog.isVisible()) else None
         if status == "found":
             if silent and tag == self.visualizer.settings.skipped_version:
@@ -67,8 +86,14 @@ class Tray:
                 f"{APP_NAME} {tag} is available (you have v{APP_VERSION}).\n\nDownload and install the update automatically?",
             )
             if reply == QMessageBox.StandardButton.Yes:
-                self.update_action.setEnabled(False)
-                self.update_action.setText("Updating…")
+                self._set_update_ui(True, "Downloading update…")
+                dlg = QProgressDialog("Downloading update…", None, 0, 100, parent)
+                dlg.setWindowTitle(f"Updating {APP_NAME}")
+                dlg.setWindowModality(Qt.WindowModality.WindowModal if parent else Qt.WindowModality.ApplicationModal)
+                dlg.setMinimumDuration(0)
+                dlg.setValue(0)
+                dlg.show()
+                self._progress_dlg = dlg
                 self.updater.download_and_install_async(
                     zip_url,
                     lambda: QTimer.singleShot(0, self.app.quit),
@@ -88,8 +113,10 @@ class Tray:
             )
 
     def _on_update_failed(self, message: str) -> None:
-        self.update_action.setEnabled(True)
-        self.update_action.setText("Check for Update…")
+        if self._progress_dlg is not None:
+            self._progress_dlg.close()
+            self._progress_dlg = None
+        self._set_update_ui(False, "Check for Update…")
         parent = self.dialog if (self.dialog is not None and self.dialog.isVisible()) else None
         QMessageBox.warning(parent, "Update Error", message)
 
