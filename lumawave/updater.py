@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -30,10 +31,13 @@ class Updater(QObject):
     install_failed = Signal(str)
     status_changed = Signal(str)
     progress_changed = Signal(int)
+    ready_to_quit = Signal()
+    ready_to_restart = Signal(str)
 
     def __init__(self) -> None:
         super().__init__()
         self._expected_sha256: dict[str, str] = {}
+        self._expected_size: dict[str, int] = {}
         self._checking = False
         self._installing = False
 
@@ -54,6 +58,7 @@ class Updater(QObject):
                 best_ver = parse_version(APP_VERSION)
                 best_zip = ""
                 best_zip_name = ""
+                best_zip_size = 0
                 sums_url = ""
                 for rel in releases:
                     if rel.get("draft"):
@@ -63,6 +68,7 @@ class Updater(QObject):
                     if ver > best_ver:
                         zip_url = ""
                         zip_name = ""
+                        zip_size = 0
                         sha_url = ""
                         for asset in rel.get("assets", []):
                             raw_name = str(asset.get("name", ""))
@@ -70,6 +76,7 @@ class Updater(QObject):
                             if name.endswith(".zip"):
                                 zip_url = str(asset.get("browser_download_url", ""))
                                 zip_name = name
+                                zip_size = int(asset.get("size") or 0)
                             elif name == "sha256sums.txt":
                                 sha_url = str(asset.get("browser_download_url", ""))
                         if zip_url:
@@ -77,8 +84,11 @@ class Updater(QObject):
                             best_tag = tag
                             best_zip = zip_url
                             best_zip_name = zip_name
+                            best_zip_size = zip_size
                             sums_url = sha_url
                 if best_tag and best_zip:
+                    if best_zip_size > 0:
+                        self._expected_size[best_zip] = best_zip_size
                     if sums_url:
                         try:
                             sreq = urllib.request.Request(sums_url, headers={"User-Agent": f"LumaWave/{APP_VERSION}"})
@@ -123,23 +133,68 @@ class Updater(QObject):
 
                 self.status_changed.emit("Downloading update…")
                 self.progress_changed.emit(0)
-                req = urllib.request.Request(zip_url, headers={"User-Agent": f"LumaWave/{APP_VERSION}"})
-                with urllib.request.urlopen(req, timeout=60) as resp, open(zip_path, "wb") as out:
-                    total = int(resp.headers.get("Content-Length") or 0)
-                    downloaded = 0
+                total = self._expected_size.get(zip_url, 0)
+                curl_exe = shutil.which("curl.exe") or shutil.which("curl")
+                downloaded_via_curl = False
+                if curl_exe:
+                    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+                    proc = subprocess.Popen(
+                        [
+                            curl_exe,
+                            "-L",
+                            "--fail",
+                            "--silent",
+                            "--show-error",
+                            "--connect-timeout",
+                            "10",
+                            "-A",
+                            f"LumaWave/{APP_VERSION}",
+                            "-o",
+                            str(zip_path),
+                            zip_url,
+                        ],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.PIPE,
+                        creationflags=flags,
+                    )
                     last_pct = -1
-                    while True:
-                        chunk = resp.read(65536)
-                        if not chunk:
-                            break
-                        out.write(chunk)
-                        downloaded += len(chunk)
-                        if total > 0:
-                            pct = min(99, int(downloaded * 100 / total))
-                            if pct != last_pct:
-                                last_pct = pct
-                                self.progress_changed.emit(pct)
-                                self.status_changed.emit(f"Downloading update ({pct}%)…")
+                    while proc.poll() is None:
+                        if zip_path.exists():
+                            done = zip_path.stat().st_size
+                            if total > 0:
+                                pct = min(99, int(done * 100 / total))
+                                if pct != last_pct:
+                                    last_pct = pct
+                                    self.progress_changed.emit(pct)
+                                    self.status_changed.emit(
+                                        f"Downloading update ({pct}% • {done / 1048576:.1f} / {total / 1048576:.1f} MB)…"
+                                    )
+                            else:
+                                self.status_changed.emit(f"Downloading update ({done / 1048576:.1f} MB)…")
+                        time.sleep(0.2)
+                    if proc.returncode == 0 and zip_path.exists() and zip_path.stat().st_size > 0:
+                        downloaded_via_curl = True
+
+                if not downloaded_via_curl:
+                    req = urllib.request.Request(zip_url, headers={"User-Agent": f"LumaWave/{APP_VERSION}"})
+                    with urllib.request.urlopen(req, timeout=60) as resp, open(zip_path, "wb") as out:
+                        total = total or int(resp.headers.get("Content-Length") or 0)
+                        downloaded = 0
+                        last_pct = -1
+                        while True:
+                            chunk = resp.read(1048576)
+                            if not chunk:
+                                break
+                            out.write(chunk)
+                            downloaded += len(chunk)
+                            if total > 0:
+                                pct = min(99, int(downloaded * 100 / total))
+                                if pct != last_pct:
+                                    last_pct = pct
+                                    self.progress_changed.emit(pct)
+                                    self.status_changed.emit(
+                                        f"Downloading update ({pct}% • {downloaded / 1048576:.1f} / {total / 1048576:.1f} MB)…"
+                                    )
 
                 self.status_changed.emit("Verifying SHA-256 checksum…")
                 self.progress_changed.emit(99)
@@ -180,10 +235,8 @@ class Updater(QObject):
                     f"rmdir /s /q \"{stage}\" 2>NUL\r\n"
                 )
                 bat_path.write_text(bat_content, encoding="utf-8")
-
-                flags = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
-                subprocess.Popen(["cmd.exe", "/c", str(bat_path)], creationflags=flags)
-                on_ready_to_quit()
+                self._installing = False
+                self.ready_to_restart.emit(str(bat_path))
             except Exception as exc:
                 self._installing = False
                 self.install_failed.emit(f"Update failed: {exc}")

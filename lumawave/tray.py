@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
@@ -18,11 +19,14 @@ class Tray:
         self.app, self.visualizer = app, visualizer
         self.dialog: SettingsDialog | None = None
         self._progress_dlg: QProgressDialog | None = None
+        self._pending_update_bat: str = ""
         self.updater = Updater()
         self.updater.check_finished.connect(self._on_update_checked)
         self.updater.install_failed.connect(self._on_update_failed)
         self.updater.status_changed.connect(self._on_update_status)
         self.updater.progress_changed.connect(self._on_update_progress)
+        self.updater.ready_to_restart.connect(self._on_ready_to_restart)
+        app.aboutToQuit.connect(self._launch_pending_update)
 
         app_icon = self._make_icon()
         app.setWindowIcon(app_icon)
@@ -90,6 +94,8 @@ class Tray:
                 dlg = QProgressDialog("Downloading update…", None, 0, 100, parent)
                 dlg.setWindowTitle(f"Updating {APP_NAME}")
                 dlg.setWindowModality(Qt.WindowModality.WindowModal if parent else Qt.WindowModality.ApplicationModal)
+                dlg.setAutoClose(False)
+                dlg.setAutoReset(False)
                 dlg.setMinimumDuration(0)
                 dlg.setValue(0)
                 dlg.show()
@@ -111,6 +117,34 @@ class Tray:
                 "No Internet Connection",
                 "You appear to be offline. Please turn on your internet connection and check again.",
             )
+
+    def _launch_pending_update(self) -> None:
+        if not self._pending_update_bat:
+            return
+        bat = self._pending_update_bat
+        self._pending_update_bat = ""
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+        subprocess.Popen(["cmd.exe", "/c", bat], creationflags=flags)
+
+    def _on_ready_to_restart(self, bat_path: str) -> None:
+        if self._progress_dlg is not None:
+            self._progress_dlg.close()
+            self._progress_dlg = None
+        self._set_update_ui(False, "Check for Update…")
+        parent = self.dialog if (self.dialog is not None and self.dialog.isVisible()) else None
+        box = QMessageBox(
+            QMessageBox.Icon.Question,
+            "Restart Required",
+            f"The {APP_NAME} update has been downloaded and verified.\n\nRestart now to finish installing it?",
+            parent=parent,
+        )
+        restart_btn = box.addButton("Restart Now", QMessageBox.ButtonRole.AcceptRole)
+        box.addButton("Later", QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(restart_btn)
+        box.exec()
+        self._pending_update_bat = bat_path
+        if box.clickedButton() == restart_btn:
+            self.app.quit()
 
     def _on_update_failed(self, message: str) -> None:
         if self._progress_dlg is not None:
