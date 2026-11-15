@@ -16,7 +16,10 @@ from PySide6.QtWidgets import (
 from . import APP_VERSION, GITHUB_REPO
 from .audio import AudioEngine
 from .colors import extract_screen_colors, extract_wallpaper_colors
-from .config import COLOR_PRESETS, DEFAULT_COLORS, Settings, save_settings
+from .config import (
+    COLOR_PRESETS, DEFAULT_COLORS, Settings, is_windows_startup_enabled,
+    save_settings, set_windows_startup,
+)
 from .visualizer import Visualizer
 
 
@@ -171,11 +174,15 @@ class SettingsDialog(QDialog):
         header.addStretch()
         self.power_btn = QPushButton()
         self.power_btn.setCheckable(True)
+        self.power_btn.setAutoDefault(False)
+        self.power_btn.setDefault(False)
         self.power_btn.setChecked(current.enabled)
         self._style_power_btn()
         self.power_btn.toggled.connect(self._on_power_toggled)
         header.addWidget(self.power_btn)
         test_btn = QPushButton("Test 6s")
+        test_btn.setAutoDefault(False)
+        test_btn.setDefault(False)
         test_btn.clicked.connect(visualizer.test_bars)
         header.addWidget(test_btn)
         root.addLayout(header)
@@ -308,6 +315,8 @@ class SettingsDialog(QDialog):
         self.color_btns: list[QPushButton] = []
         for idx in range(5):
             btn = QPushButton(f"Color {idx + 1}")
+            btn.setAutoDefault(False)
+            btn.setDefault(False)
             btn.setMinimumHeight(32)
             btn.clicked.connect(lambda _=False, i=idx: self._pick_color(i))
             self.color_btns.append(btn)
@@ -340,11 +349,15 @@ class SettingsDialog(QDialog):
 
         self.topmost = QCheckBox("Keep visualizer above applications")
         self.topmost.setChecked(current.always_on_top)
+        self.chk_startup = QCheckBox("Start with Windows (auto-launch on sign-in)")
+        self.chk_startup.setChecked(is_windows_startup_enabled())
+        self.chk_startup.toggled.connect(set_windows_startup)
         self.chk_cursor = QCheckBox("Cursor interactive (stretch waves on hover)")
         self.chk_cursor.setChecked(current.cursor_react)
         self.demo = QCheckBox("Demo bars (does not use audio)")
         self.demo.setChecked(current.test_mode)
         form.addRow("Overlay:", self.topmost)
+        form.addRow("Startup:", self.chk_startup)
         form.addRow("Interaction:", self.chk_cursor)
         form.addRow("Diagnostics:", self.demo)
         dev_lay.addLayout(form)
@@ -361,10 +374,14 @@ class SettingsDialog(QDialog):
 
         footer = QHBoxLayout()
         reset_btn = QPushButton("Reset Defaults")
+        reset_btn.setAutoDefault(False)
+        reset_btn.setDefault(False)
         reset_btn.clicked.connect(self._reset_defaults)
         auto_lbl = QLabel("Changes apply & save live")
         auto_lbl.setStyleSheet("color: #7d8599; font-size: 11px;")
         close_btn = QPushButton("Close")
+        close_btn.setAutoDefault(False)
+        close_btn.setDefault(False)
         close_btn.clicked.connect(self.close)
         footer.addWidget(reset_btn)
         footer.addSpacing(10)
@@ -401,8 +418,22 @@ class SettingsDialog(QDialog):
         box = QLineEdit(str(val))
         box.setObjectName("numBox")
         box.setValidator(QIntValidator(lo, hi, box))
-        box.setFixedWidth(58)
+        box.setFixedWidth(50)
         box.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        btn_down = QPushButton("−")
+        btn_down.setAutoDefault(False)
+        btn_down.setDefault(False)
+        btn_down.setAutoRepeat(True)
+        btn_down.setFixedSize(26, 28)
+        btn_down.setStyleSheet("padding: 0px; font-weight: 700;")
+
+        btn_up = QPushButton("+")
+        btn_up.setAutoDefault(False)
+        btn_up.setDefault(False)
+        btn_up.setAutoRepeat(True)
+        btn_up.setFixedSize(26, 28)
+        btn_up.setStyleSheet("padding: 0px; font-weight: 700;")
 
         def on_slider(v: int) -> None:
             if box.text() != str(v):
@@ -412,14 +443,21 @@ class SettingsDialog(QDialog):
             txt = box.text().strip()
             if txt.isdigit():
                 v = max(lo, min(hi, int(txt)))
+                if box.text() != str(v):
+                    box.setText(str(v))
                 if slider.value() != v:
                     slider.setValue(v)
 
+        btn_down.clicked.connect(lambda: slider.setValue(max(lo, slider.value() - 1)))
+        btn_up.clicked.connect(lambda: slider.setValue(min(hi, slider.value() + 1)))
         slider.valueChanged.connect(on_slider)
+        box.returnPressed.connect(on_box_edit)
         box.editingFinished.connect(on_box_edit)
         row.addWidget(lbl)
         row.addWidget(slider, 1)
+        row.addWidget(btn_down)
         row.addWidget(box)
+        row.addWidget(btn_up)
         parent.addLayout(row)
         return slider, box
 
@@ -598,6 +636,8 @@ class SettingsDialog(QDialog):
         self.s_cir_thick.setValue(d.circle_thickness)
         self.s_cir_op.setValue(d.circle_opacity)
         self.chk_cursor.setChecked(d.cursor_react)
+        self.chk_startup.setChecked(False)
+        set_windows_startup(False)
         self.topmost.setChecked(d.always_on_top)
         self.demo.setChecked(d.test_mode)
         self._suppress_live = False

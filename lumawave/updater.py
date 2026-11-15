@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -25,10 +26,14 @@ def parse_version(tag: str) -> tuple[int, ...]:
 class Updater(QObject):
     """Checks GitHub Releases and performs in-place self-updates for frozen builds."""
 
-    check_finished = Signal(str, str, str)
+    check_finished = Signal(str, str, str, bool)
     install_failed = Signal(str)
 
-    def check_async(self) -> None:
+    def __init__(self) -> None:
+        super().__init__()
+        self._expected_sha256: dict[str, str] = {}
+
+    def check_async(self, silent: bool = False) -> None:
         def worker() -> None:
             url = f"https://api.github.com/repos/{GITHUB_REPO}/releases?per_page=8"
             try:
@@ -38,6 +43,7 @@ class Updater(QObject):
                 best_tag = ""
                 best_ver = parse_version(APP_VERSION)
                 best_zip = ""
+                sums_url = ""
                 for rel in releases:
                     if rel.get("draft"):
                         continue
@@ -45,21 +51,34 @@ class Updater(QObject):
                     ver = parse_version(tag)
                     if ver > best_ver:
                         zip_url = ""
+                        sha_url = ""
                         for asset in rel.get("assets", []):
                             name = str(asset.get("name", "")).lower()
                             if name.endswith(".zip"):
                                 zip_url = str(asset.get("browser_download_url", ""))
-                                break
+                            elif name == "sha256sums.txt":
+                                sha_url = str(asset.get("browser_download_url", ""))
                         if zip_url:
                             best_ver = ver
                             best_tag = tag
                             best_zip = zip_url
+                            sums_url = sha_url
                 if best_tag and best_zip:
-                    self.check_finished.emit("found", best_tag, best_zip)
+                    if sums_url:
+                        try:
+                            sreq = urllib.request.Request(sums_url, headers={"User-Agent": f"LumaWave/{APP_VERSION}"})
+                            with urllib.request.urlopen(sreq, timeout=6) as sresp:
+                                for line in sresp.read().decode("utf-8").splitlines():
+                                    parts = line.strip().split()
+                                    if len(parts) >= 2 and len(parts[0]) == 64:
+                                        self._expected_sha256[best_zip] = parts[0].lower()
+                        except Exception:
+                            pass
+                    self.check_finished.emit("found", best_tag, best_zip, silent)
                 else:
-                    self.check_finished.emit("current", f"v{APP_VERSION}", "")
+                    self.check_finished.emit("current", f"v{APP_VERSION}", "", silent)
             except Exception:
-                self.check_finished.emit("offline", "", "")
+                self.check_finished.emit("offline", "", "", silent)
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -83,6 +102,12 @@ class Updater(QObject):
                 req = urllib.request.Request(zip_url, headers={"User-Agent": f"LumaWave/{APP_VERSION}"})
                 with urllib.request.urlopen(req, timeout=60) as resp, open(zip_path, "wb") as out:
                     shutil.copyfileobj(resp, out)
+
+                expected_hash = self._expected_sha256.get(zip_url)
+                if expected_hash:
+                    actual_hash = hashlib.sha256(zip_path.read_bytes()).hexdigest().lower()
+                    if actual_hash != expected_hash:
+                        raise RuntimeError("SHA-256 checksum mismatch; update aborted.")
 
                 with zipfile.ZipFile(zip_path, "r") as zf:
                     zf.extractall(extract_dir)

@@ -2,8 +2,57 @@ from __future__ import annotations
 
 import json
 import os
+import sys
+import winreg
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+
+RUN_KEY_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
+APPROVED_KEY_PATH = r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run"
+RUN_VALUE_NAME = "LumaWave"
+
+
+def is_windows_startup_enabled() -> bool:
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY_PATH, 0, winreg.KEY_READ) as key:
+            val, _ = winreg.QueryValueEx(key, RUN_VALUE_NAME)
+            if not val:
+                return False
+    except OSError:
+        return False
+
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, APPROVED_KEY_PATH, 0, winreg.KEY_READ) as akey:
+            data, _ = winreg.QueryValueEx(akey, RUN_VALUE_NAME)
+            if isinstance(data, (bytes, bytearray)) and len(data) > 0 and (data[0] & 0x01) != 0:
+                return False
+    except OSError:
+        pass
+    return True
+
+
+def set_windows_startup(enabled: bool) -> None:
+    try:
+        with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, RUN_KEY_PATH, 0, winreg.KEY_SET_VALUE) as key:
+            if enabled:
+                if getattr(sys, "frozen", False):
+                    cmd = f'"{sys.executable}"'
+                else:
+                    entry = Path(__file__).resolve().parent.parent / "app.py"
+                    cmd = f'"{sys.executable}" "{entry}"'
+                winreg.SetValueEx(key, RUN_VALUE_NAME, 0, winreg.REG_SZ, cmd)
+            else:
+                try:
+                    winreg.DeleteValue(key, RUN_VALUE_NAME)
+                except FileNotFoundError:
+                    pass
+        with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, APPROVED_KEY_PATH, 0, winreg.KEY_SET_VALUE) as akey:
+            try:
+                winreg.DeleteValue(akey, RUN_VALUE_NAME)
+            except FileNotFoundError:
+                pass
+    except OSError:
+        pass
 
 CONFIG_FILE = Path(os.environ.get("APPDATA", Path.home())) / "LumaWave" / "settings-v2.json"
 
@@ -53,6 +102,7 @@ class Settings:
     cursor_react: bool = True
     always_on_top: bool = True
     test_mode: bool = False
+    skipped_version: str = ""
 
 
 def load_settings() -> Settings:

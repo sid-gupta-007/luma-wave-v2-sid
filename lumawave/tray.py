@@ -5,6 +5,7 @@ from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
 from . import APP_VERSION
+from .config import save_settings
 from .settings_ui import SettingsDialog
 from .updater import Updater
 from .visualizer import Visualizer
@@ -42,16 +43,19 @@ class Tray:
         self.icon.setContextMenu(menu)
         self.icon.activated.connect(self._on_activated)
         self.icon.show()
+        QTimer.singleShot(2500, lambda: self.updater.check_async(silent=True))
 
     def check_for_update(self) -> None:
         self.update_action.setEnabled(False)
         self.update_action.setText("Checking for Update…")
-        self.updater.check_async()
+        self.updater.check_async(silent=False)
 
-    def _on_update_checked(self, status: str, tag: str, zip_url: str) -> None:
+    def _on_update_checked(self, status: str, tag: str, zip_url: str, silent: bool) -> None:
         self.update_action.setEnabled(True)
         self.update_action.setText("Check for Update…")
         if status == "found":
+            if silent and tag == self.visualizer.settings.skipped_version:
+                return
             reply = QMessageBox.question(
                 None,
                 "Update Available",
@@ -64,10 +68,19 @@ class Tray:
                     zip_url,
                     lambda: QTimer.singleShot(0, self.app.quit),
                 )
+            else:
+                self.visualizer.settings.skipped_version = tag
+                save_settings(self.visualizer.settings)
+        elif silent:
+            return
         elif status == "current":
             QMessageBox.information(None, "Up to Date", f"You are running the latest version ({tag}).")
         else:
-            QMessageBox.information(None, "Offline", "Could not reach GitHub right now. Try again when online.")
+            QMessageBox.information(
+                None,
+                "No Internet Connection",
+                "You appear to be offline. Please turn on your internet connection and check again.",
+            )
 
     def _on_update_failed(self, message: str) -> None:
         self.update_action.setEnabled(True)
