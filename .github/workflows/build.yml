@@ -75,8 +75,8 @@ jobs:
           $setup = "LumaWave-v${{ steps.version.outputs.version }}-Setup.exe"
           Compress-Archive -Path dist\LumaWave\* -DestinationPath $zip -Force
           @(
-            "$((Get-FileHash $zip -Algorithm SHA256).Hash.ToLower())  $zip"
             "$((Get-FileHash $setup -Algorithm SHA256).Hash.ToLower())  $setup"
+            "$((Get-FileHash $zip -Algorithm SHA256).Hash.ToLower())  $zip"
           ) | Out-File -FilePath SHA256SUMS.txt -Encoding ascii
 
       - name: Attest build provenance
