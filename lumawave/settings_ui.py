@@ -226,6 +226,7 @@ class SettingsDialog(QDialog):
         self.ambient_style = QComboBox()
         self.ambient_style.installEventFilter(self.wheel_filter)
         for label, key in (
+            ("Off", "none"),
             ("3D Silk Ribbon", "silk_3d"),
             ("Spectrum Bars", "bars"),
             ("LED Matrix Dots", "led_dots"),

@@ -28,6 +28,7 @@ class Visualizer(QWidget):
         self.test_until = 0.0
         self.cursor_local = None
         self._screen_tick = 0
+        self._device_tick = 0
         self._color_phase = 0.0
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
@@ -123,33 +124,43 @@ class Visualizer(QWidget):
         if not self.isVisible():
             self.show()
         n = len(self.values)
-        is_demo = self.settings.test_mode or time.monotonic() < self.test_until
+        s = self.settings
+        need_main = s.main_style != "none" or s.circle_style != "none"
+        need_ambient = s.ambient_style != "none" and (s.ambient_top or s.ambient_bottom or s.ambient_left or s.ambient_right)
+        is_demo = s.test_mode or time.monotonic() < self.test_until
         if is_demo:
             phase = time.monotonic() * 3.2
             target = np.array([
                 (0.22 + 0.72 * abs(math.sin(phase + i * 0.24))) * (1.0 - 0.55 * (i / max(1, n - 1)))
                 for i in range(n)
-            ], dtype=np.float32)
+            ], dtype=np.float32) if need_main else np.zeros(n, dtype=np.float32)
             amb_target = np.array([
                 0.22 + 0.65 * (0.5 + 0.5 * math.sin(phase * 0.8 + i * 0.42))
                 for i in range(len(self.ambient_values))
-            ], dtype=np.float32)
+            ], dtype=np.float32) if need_ambient else np.zeros(len(self.ambient_values), dtype=np.float32)
         else:
-            target = self.audio.spectrum(n)
-            raw_amb = self.audio.spectrum(len(self.ambient_values))
-            amb_target = np.convolve(np.pad(raw_amb, 1, mode="edge"), [0.25, 0.5, 0.25], mode="valid")
+            self._device_tick += 1
+            if self._device_tick >= 120:
+                self._device_tick = 0
+                self.audio.check_device_async()
+            target = self.audio.spectrum(n) if need_main else np.zeros(n, dtype=np.float32)
+            if need_ambient:
+                raw_amb = self.audio.spectrum(len(self.ambient_values))
+                amb_target = np.convolve(np.pad(raw_amb, 1, mode="edge"), [0.25, 0.5, 0.25], mode="valid")
+            else:
+                amb_target = np.zeros(len(self.ambient_values), dtype=np.float32)
 
         self.values += (target - self.values) * 0.24
         self.ambient_values += (amb_target - self.ambient_values) * 0.14
-        if self.settings.cursor_react:
+        if s.cursor_react:
             self.cursor_local = self.mapFromGlobal(QCursor.pos())
         else:
             self.cursor_local = None
-        if self.settings.color_flow:
+        if s.color_flow:
             self._color_phase = (self._color_phase + 0.0022) % 1.0
-        if self.settings.color_mode == "screen":
+        if s.color_mode == "screen":
             self._screen_tick += 1
-            if self._screen_tick >= 20:
+            if self._screen_tick >= 60:
                 self._screen_tick = 0
                 self.refresh_palette(smooth=True)
         if len(self.active_colors) == len(self.target_colors):
@@ -164,7 +175,7 @@ class Visualizer(QWidget):
 
     def _draw_ambient_edges(self, painter: QPainter) -> None:
         s = self.settings
-        if not (s.ambient_top or s.ambient_bottom or s.ambient_left or s.ambient_right):
+        if s.ambient_style == "none" or not (s.ambient_top or s.ambient_bottom or s.ambient_left or s.ambient_right):
             return
         alpha_max = int(255 * max(0.08, min(1.0, s.ambient_opacity / 100.0)))
         depth_max = max(24, s.ambient_depth)

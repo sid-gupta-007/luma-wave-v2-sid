@@ -82,11 +82,11 @@ class Settings:
     corner_radius: int = 12
     center_gap: int = 180
     main_opacity: int = 88
-    color_mode: str = "screen"
+    color_mode: str = "wallpaper"
     color_preset: str = "Neon Cyber"
     color_flow: bool = True
     manual_colors: list[str] = field(default_factory=lambda: list(DEFAULT_COLORS))
-    ambient_style: str = "silk_3d"
+    ambient_style: str = "none"
     ambient_top: bool = False
     ambient_bottom: bool = False
     ambient_left: bool = False
