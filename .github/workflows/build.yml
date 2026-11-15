@@ -1,0 +1,58 @@
+name: Build Windows Release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build LumaWave with PyInstaller
+        run: python -m PyInstaller --noconfirm --clean LumaWave.spec
+
+      - name: Verify no third-party ICU DLLs are bundled
+        shell: pwsh
+        run: |
+          $icu = Get-ChildItem dist\LumaWave\_internal -Filter icu*
+          if ($icu) {
+            Write-Error "Unexpected ICU DLLs found: $($icu.Name -join ', ')"
+            exit 1
+          }
+
+      - name: Package LumaWave-Windows-x64.zip
+        shell: pwsh
+        run: Compress-Archive -Path dist\LumaWave\* -DestinationPath LumaWave-Windows-x64.zip -Force
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LumaWave-Windows-x64
+          path: LumaWave-Windows-x64.zip
+
+      - name: Publish to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'latest' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'Latest Build (main)' }}
+          files: LumaWave-Windows-x64.zip
+
