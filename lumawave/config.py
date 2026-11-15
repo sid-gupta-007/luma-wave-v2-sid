@@ -1,0 +1,71 @@
+from __future__ import annotations
+
+import json
+import os
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+
+CONFIG_FILE = Path(os.environ.get("APPDATA", Path.home())) / "LumaWave" / "settings-v2.json"
+
+BUFFER_SIZE = 4096
+
+DEFAULT_COLORS = ["#7890d7", "#dc8c64", "#b478c8", "#64c8dc", "#a0d2a0"]
+
+COLOR_PRESETS: dict[str, list[str]] = {
+    "Neon Cyber": ["#00f5d4", "#00bbf9", "#9b5de5", "#f15bb5", "#fee440"],
+    "Sunset Drive": ["#ff4d6d", "#ff758f", "#ff9e00", "#ffd166", "#c77dff"],
+    "Ocean Aurora": ["#00f5d4", "#00d2ff", "#3a86ff", "#4361ee", "#7209b7"],
+    "Synthwave": ["#ff2a85", "#ff70a6", "#9d4edd", "#5e60ce", "#4ea8de"],
+    "Toxic Lime": ["#ccff00", "#80ffdb", "#00f5d4", "#00bbf9", "#5390d9"],
+    "Monochrome Ice": ["#e0fbfc", "#98c1d9", "#69a2b0", "#3d5a80", "#bde0fe"],
+}
+
+
+@dataclass
+class Settings:
+    enabled: bool = True
+    audio_device: str = "default"
+    monitor: int = 0
+    main_style: str = "bars"
+    bar_width: int = 24
+    bar_gap: int = 14
+    bar_height: int = 320
+    corner_radius: int = 12
+    center_gap: int = 180
+    main_opacity: int = 88
+    color_mode: str = "screen"
+    color_preset: str = "Neon Cyber"
+    color_flow: bool = True
+    manual_colors: list[str] = field(default_factory=lambda: list(DEFAULT_COLORS))
+    ambient_style: str = "silk_3d"
+    ambient_top: bool = False
+    ambient_bottom: bool = False
+    ambient_left: bool = False
+    ambient_right: bool = False
+    ambient_opacity: int = 65
+    ambient_depth: int = 65
+    ambient_thickness: int = 2
+    circle_style: str = "none"
+    circle_radius: int = 120
+    circle_scale: int = 95
+    circle_thickness: int = 3
+    circle_opacity: int = 85
+    cursor_react: bool = True
+    always_on_top: bool = True
+    test_mode: bool = False
+
+
+def load_settings() -> Settings:
+    try:
+        raw = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+        valid = {k: v for k, v in raw.items() if k in Settings.__dataclass_fields__}
+        return Settings(**valid)
+    except (OSError, TypeError, ValueError):
+        return Settings()
+
+
+def save_settings(settings: Settings) -> None:
+    CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    CONFIG_FILE.write_text(json.dumps(asdict(settings), indent=2), encoding="utf-8")
+
+

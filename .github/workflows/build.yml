@@ -46,10 +46,10 @@ jobs:
           if ("${{ github.ref }}".StartsWith("refs/tags/v")) {
             $ver = "${{ github.ref_name }}".TrimStart("v")
           } else {
-            if ((Get-Content app.py -Raw) -match 'APP_VERSION\s*=\s*"([^"]+)"') {
+            if ((Get-Content lumawave\__init__.py -Raw) -match 'APP_VERSION\s*=\s*"([^"]+)"') {
               $ver = $Matches[1]
             } else {
-              Write-Error "APP_VERSION not found in app.py"
+              Write-Error "APP_VERSION not found in lumawave\__init__.py"
               exit 1
             }
           }
