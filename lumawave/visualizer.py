@@ -150,8 +150,10 @@ class Visualizer(QWidget):
             else:
                 amb_target = np.zeros(len(self.ambient_values), dtype=np.float32)
 
-        self.values += (target - self.values) * 0.24
-        self.ambient_values += (amb_target - self.ambient_values) * 0.14
+        main_rate = np.where(target > self.values, 0.62, 0.20)
+        amb_rate = np.where(amb_target > self.ambient_values, 0.48, 0.15)
+        self.values += (target - self.values) * main_rate
+        self.ambient_values += (amb_target - self.ambient_values) * amb_rate
         if s.cursor_react:
             self.cursor_local = self.mapFromGlobal(QCursor.pos())
         else:

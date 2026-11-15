@@ -27,6 +27,7 @@ class AudioEngine:
         self._checking = False
         self._hanning = np.hanning(FFT_SIZE).astype(np.float32)
         self._freqs = np.fft.rfftfreq(FFT_SIZE, 1 / self.sample_rate)
+        self._agc_peak = 6.0
 
     @staticmethod
     def loopback_devices() -> list[dict]:
@@ -115,13 +116,28 @@ class AudioEngine:
             return np.zeros(bands, dtype=np.float32)
         fft = np.abs(np.fft.rfft(samples * self._hanning))
         frequencies = self._freqs
-        edges = np.geomspace(40, min(16000, self.sample_rate / 2), bands + 1)
-        values = np.zeros(bands, dtype=np.float32)
+        edges = np.geomspace(28, min(16000, self.sample_rate / 2), bands + 1)
+        raw = np.zeros(bands, dtype=np.float32)
         for index in range(bands):
             region = fft[(frequencies >= edges[index]) & (frequencies < edges[index + 1])]
             if len(region):
-                values[index] = float(np.log1p(region.max()) / 8.2)
-        return np.clip(values, 0, 1)
+                raw[index] = float(0.7 * region.max() + 0.3 * region.mean())
+            else:
+                center = 0.5 * (edges[index] + edges[index + 1])
+                raw[index] = float(np.interp(center, frequencies, fft))
+
+        # Boost mid/high bands relative to sub-bass so snares & hi-hats stand out clearly
+        tilt = np.linspace(0.95, 1.85, bands, dtype=np.float32)
+        energy = np.log1p(raw * tilt)
+
+        frame_peak = float(np.percentile(energy, 98))
+        if frame_peak > self._agc_peak:
+            self._agc_peak += (frame_peak - self._agc_peak) * 0.35
+        else:
+            self._agc_peak = max(3.5, self._agc_peak * 0.996)
+
+        norm = np.clip((energy - 0.35) / max(1.5, self._agc_peak - 0.35), 0.0, 1.0)
+        return np.power(norm, 1.35).astype(np.float32)
 
     def _stop_unlocked(self, keep_error: bool = False) -> None:
         if self.stream:
