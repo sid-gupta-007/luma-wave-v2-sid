@@ -58,18 +58,33 @@ jobs:
           echo "version=$ver" >> $env:GITHUB_OUTPUT
           echo "tag=v$ver" >> $env:GITHUB_OUTPUT
 
-      - name: Package LumaWave-Windows-x64.zip & SHA-256 checksum
+      - name: Build Windows Installer (Inno Setup)
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup -y
+          }
+          & $iscc "/DAppVersion=${{ steps.version.outputs.version }}" installer.iss
+          Copy-Item "dist\LumaWave-v${{ steps.version.outputs.version }}-Setup.exe" -Destination "." -Force
+
+      - name: Package LumaWave-Windows-x64.zip & SHA-256 checksums
         shell: pwsh
         run: |
           $zip = "LumaWave-v${{ steps.version.outputs.version }}-Windows-x64.zip"
+          $setup = "LumaWave-v${{ steps.version.outputs.version }}-Setup.exe"
           Compress-Archive -Path dist\LumaWave\* -DestinationPath $zip -Force
-          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
-          "$hash  $zip" | Out-File -FilePath SHA256SUMS.txt -Encoding ascii
+          @(
+            "$((Get-FileHash $zip -Algorithm SHA256).Hash.ToLower())  $zip"
+            "$((Get-FileHash $setup -Algorithm SHA256).Hash.ToLower())  $setup"
+          ) | Out-File -FilePath SHA256SUMS.txt -Encoding ascii
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v2
         with:
-          subject-path: LumaWave-v${{ steps.version.outputs.version }}-Windows-x64.zip
+          subject-path: |
+            LumaWave-v${{ steps.version.outputs.version }}-Windows-x64.zip
+            LumaWave-v${{ steps.version.outputs.version }}-Setup.exe
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
@@ -77,6 +92,7 @@ jobs:
           name: LumaWave-v${{ steps.version.outputs.version }}-Windows-x64
           path: |
             LumaWave-v${{ steps.version.outputs.version }}-Windows-x64.zip
+            LumaWave-v${{ steps.version.outputs.version }}-Setup.exe
             SHA256SUMS.txt
 
       - name: Publish to GitHub Releases
@@ -86,5 +102,6 @@ jobs:
           name: Luma-Wave ${{ steps.version.outputs.tag }}
           files: |
             LumaWave-v${{ steps.version.outputs.version }}-Windows-x64.zip
+            LumaWave-v${{ steps.version.outputs.version }}-Setup.exe
             SHA256SUMS.txt
 
