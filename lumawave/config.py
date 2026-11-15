@@ -67,6 +67,7 @@ COLOR_PRESETS: dict[str, list[str]] = {
     "Synthwave": ["#ff2a85", "#ff70a6", "#9d4edd", "#5e60ce", "#4ea8de"],
     "Toxic Lime": ["#ccff00", "#80ffdb", "#00f5d4", "#00bbf9", "#5390d9"],
     "Monochrome Ice": ["#e0fbfc", "#98c1d9", "#69a2b0", "#3d5a80", "#bde0fe"],
+    "Crimson Phonk": ["#ff003c", "#ff4d6d", "#ff8500", "#b5179e", "#7209b7"],
 }
 
 
