@@ -5,27 +5,32 @@ import ctypes
 import json
 import math
 import os
+import re
 import sys
 import threading
 import time
+import urllib.request
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 import numpy as np
 import pyaudiowpatch as pyaudio
-from PySide6.QtCore import QEvent, QObject, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QObject, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import (
-    QAction, QColor, QCursor, QGuiApplication, QIcon, QImage, QImageReader,
-    QIntValidator, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap,
+    QAction, QColor, QCursor, QDesktopServices, QGuiApplication, QIcon, QImage,
+    QImageReader, QIntValidator, QLinearGradient, QPainter, QPainterPath, QPen,
+    QPixmap,
 )
 from PySide6.QtWidgets import (
     QApplication, QButtonGroup, QCheckBox, QColorDialog, QComboBox, QDialog,
-    QFormLayout, QFrame, QHBoxLayout, QLabel, QLineEdit, QMenu, QPushButton,
-    QRadioButton, QScrollArea, QSlider, QSystemTrayIcon, QVBoxLayout, QWidget,
+    QFormLayout, QFrame, QHBoxLayout, QLabel, QLineEdit, QMenu, QMessageBox,
+    QPushButton, QRadioButton, QScrollArea, QSlider, QSystemTrayIcon,
+    QVBoxLayout, QWidget,
 )
 
 APP_NAME = "Luma-Wave"
 APP_VERSION = "1.1.0"
+GITHUB_REPO = "sid-gupta-007/luma-wave-v2-sid"
 CONFIG_FILE = Path(os.environ.get("APPDATA", Path.home())) / "LumaWave" / "settings-v2.json"
 FFT_SIZE = 4096
 BUFFER_SIZE = 4096
@@ -984,6 +989,7 @@ QPushButton#applyBtn:hover {
 
 class SettingsDialog(QDialog):
     applied = Signal(Settings)
+    update_checked = Signal(str, str, str)
 
     def __init__(self, current: Settings, visualizer: Visualizer) -> None:
         super().__init__()
@@ -1021,10 +1027,14 @@ class SettingsDialog(QDialog):
         self._style_power_btn()
         self.power_btn.toggled.connect(self._on_power_toggled)
         header.addWidget(self.power_btn)
+        self.update_btn = QPushButton("Check Updates")
+        self.update_btn.clicked.connect(self._check_updates)
+        header.addWidget(self.update_btn)
         test_btn = QPushButton("Test 6s")
         test_btn.clicked.connect(visualizer.test_bars)
         header.addWidget(test_btn)
         root.addLayout(header)
+        self.update_checked.connect(self._on_update_result)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -1302,6 +1312,58 @@ class SettingsDialog(QDialog):
     def _on_power_toggled(self) -> None:
         self._style_power_btn()
         self._on_live_change()
+
+    @staticmethod
+    def _parse_ver(tag: str) -> tuple[int, ...]:
+        nums = re.findall(r"\d+", tag)
+        return tuple(int(n) for n in nums[:3]) if nums else (0,)
+
+    def _check_updates(self) -> None:
+        self.update_btn.setEnabled(False)
+        self.update_btn.setText("Checking…")
+
+        def worker() -> None:
+            url = f"https://api.github.com/repos/{GITHUB_REPO}/releases?per_page=8"
+            try:
+                req = urllib.request.Request(url, headers={"User-Agent": f"LumaWave/{APP_VERSION}"})
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    releases = json.loads(resp.read().decode("utf-8"))
+                best_tag = ""
+                best_ver = self._parse_ver(APP_VERSION)
+                best_url = f"https://github.com/{GITHUB_REPO}/releases"
+                for rel in releases:
+                    if rel.get("draft"):
+                        continue
+                    tag = str(rel.get("tag_name", ""))
+                    ver = self._parse_ver(tag)
+                    if ver > best_ver:
+                        best_ver = ver
+                        best_tag = tag
+                        best_url = str(rel.get("html_url", best_url))
+                if best_tag:
+                    self.update_checked.emit("found", best_tag, best_url)
+                else:
+                    self.update_checked.emit("current", f"v{APP_VERSION}", "")
+            except Exception:
+                self.update_checked.emit("offline", "", "")
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_update_result(self, status: str, tag: str, page_url: str) -> None:
+        self.update_btn.setEnabled(True)
+        self.update_btn.setText("Check Updates")
+        if status == "found":
+            reply = QMessageBox.question(
+                self,
+                "Update Available",
+                f"Luma-Wave {tag} is available (you have v{APP_VERSION}).\n\nOpen the GitHub download page?",
+            )
+            if reply == QMessageBox.StandardButton.Yes and page_url:
+                QDesktopServices.openUrl(QUrl(page_url))
+        elif status == "current":
+            QMessageBox.information(self, "Up to Date", f"You are running the latest version ({tag}).")
+        else:
+            QMessageBox.information(self, "Offline", "Could not reach GitHub right now. Try again when online.")
 
     def _apply_swatch_colors(self, palette: list[str]) -> None:
         mode = self.color_mode.currentData() if hasattr(self, "color_mode") else "screen"
